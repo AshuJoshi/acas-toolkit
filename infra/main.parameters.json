@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName":      { "value": "dev" },
+    "location":             { "value": "westus2" },
+    "foundryLocation":      { "value": "eastus2" },
+    "enableObservability":  { "value": true },
+    "enableFoundry":        { "value": true },
+    "foundryModelName":     { "value": "gpt-5-mini" },
+    "foundryModelVersion":  { "value": "2025-08-07" },
+    "foundryModelSkuName":  { "value": "GlobalStandard" },
+    "foundryModelCapacity": { "value": 10 }
+  }
+}

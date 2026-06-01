@@ -1,0 +1,73 @@
+[project]
+name = "acas-toolkit"
+version = "0.1.0"
+description = "Build agents that run code in Azure Container Apps Sandboxes."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Ashu Joshi" }]
+requires-python = ">=3.11"
+keywords = ["azure", "container-apps", "sandbox", "agent", "codeact"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+# Versions pinned to a known-good combo verified against the May 2026 PyPI
+# build of the ACAS SDK.
+dependencies = [
+    # ACAS data/control-plane SDK. 0.1.0b1 on PyPI (uploaded 2026-05-30) is
+    # the public preview build. When the SDK graduates to GA the prerelease
+    # flag at the bottom of this file can be dropped and the egress audit
+    # behaviour re-verified with `probes/sandbox_egress_audit.py`.
+    "azure-containerapps-sandbox==0.1.0b1",
+    "azure-identity>=1.25.3",
+    "azure-monitor-opentelemetry>=1.8.8",
+    "httpx>=0.28.1",
+    "opentelemetry-api>=1.27",
+    "opentelemetry-sdk>=1.27",
+    "pydantic>=2.6",
+    "python-dotenv>=1.0",
+    # Pulled in to match the spike. Lets examples 04/05/08 import AF without
+    # an extras install. If you don't want AF, comment these two lines.
+    "agent-framework>=1.2.2,<1.3",
+    "agent-framework-foundry>=1.2.2,<1.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4",
+    "pytest>=8",
+]
+
+[project.urls]
+Homepage = "https://github.com/AshuJoshi/acas-toolkit"
+Issues   = "https://github.com/AshuJoshi/acas-toolkit/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["acas_toolkit"]
+
+# agent-framework 1.2.2 transitively depends on prerelease-only packages
+# (e.g. agent-framework-azure-ai-search==1.0.0b...). Allow them.
+# When the ACAS SDK graduates from 0.1.0bN to GA *and* the AF transitive
+# deps also stabilize, this flag can be removed.
+[tool.uv]
+prerelease = "allow"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+# 01_minimal.py performs the late, post-import-time assertions that
+# prove `acas_toolkit` is zero-cost (no eager OTel exporter, no
+# `agentic_platforms.af` pulled in). The late imports that follow
+# those assertions are intentional — they can't run at the top of
+# the file or the assertions would lose their meaning.
+"examples/01_minimal.py" = ["E402"]
