@@ -321,6 +321,7 @@ sandbox actually behaving the way I think it is?" questions.
 |---|---|
 | [`README.md`](docs/README.md) | Index. |
 | [`ACASandboxes.md`](docs/ACASandboxes.md) | Overview of Azure Container Apps Sandboxes — what they are and the platform features the toolkit builds on. |
+| [`agent-tool-lifecycle.md`](docs/agent-tool-lifecycle.md) | What the model sees, what happens on each tool call, and when sandboxes are created (cold vs. warm). |
 | [`observability.md`](docs/observability.md) | The OTel spans the toolkit emits, console + App Insights wiring, sample KQL. |
 
 ### `tests/`
