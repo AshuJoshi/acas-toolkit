@@ -2,13 +2,12 @@
 
 This module bridges the **old** call shapes used by
 :mod:`acas_toolkit.sandbox_pool` and :mod:`acas_toolkit.session_manager`
-to the **new** PyPI build of ``azure-containerapps-sandbox`` (0.1.0b1,
-uploaded 2026-05-30).
+to the current PyPI build of ``azure-containerapps-sandbox`` (``>=0.1.0b2``).
 
 Why an adapter?
 ---------------
 The PyPI build is a full autorest-generated rewrite that broke nearly
-every method signature even though the version string is identical to
+every method signature even though the version string was identical to
 the preview-private wheel we vendored earlier. Major shape
 changes:
 
@@ -33,6 +32,18 @@ signatures match the **old** SDK 1:1 — that's where the
 ``sandbox_group`` positional arg comes from on ``delete_sandbox``,
 ``exec``, etc.
 
+b2 snapshot-rehydrate shim
+--------------------------
+SDK 0.1.0b2 hardened ``begin_create_sandbox(snapshot_id=...)`` to
+reject ``egress_policy``, ``volumes`` and several other kwargs with a
+synchronous ``ValueError``. :class:`acas_toolkit.SessionManager` must
+re-apply egress and volumes on every rehydrate (snapshots don't
+persist them), so :meth:`GroupClientAdapter.create_sandbox` detects
+the rehydrate path and forwards those kwargs to the post-create
+setters ``SandboxClient.set_egress_policy`` and
+``SandboxClient.add_volume_mount``. Fresh-create paths are unchanged.
+See the method docstring for details.
+
 Cached per-sandbox clients
 --------------------------
 ``SandboxClient`` instances are slightly more than a handle (they hold
@@ -45,7 +56,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Iterable
 
+from azure.core.exceptions import HttpResponseError
 from azure.containerapps.sandbox import (
+    AddVolumeMountRequest,
     EgressHostRule,
     EgressPolicy,
     SandboxClient,
@@ -172,18 +185,71 @@ class GroupClientAdapter:
         volumes: Iterable[Any] | None = None,
         **kwargs: Any,
     ) -> _SbHandle:
-        """Create a sandbox (LRO, blocks until ``Running``). Returns ``_SbHandle``."""
+        """Create a sandbox (LRO, blocks until ``Running``). Returns ``_SbHandle``.
+
+        Snapshot-rehydrate compatibility shim
+        ------------------------------------
+        SDK 0.1.0b2 added strict validation on
+        ``begin_create_sandbox(snapshot_id=...)`` that raises
+        ``ValueError`` if combined with ``egress_policy``, ``volumes``,
+        ``labels``, ``environment``, ``connections``, ``ports``,
+        ``entrypoint``, ``cmd``, ``skip_egress_proxy``,
+        ``customer_vnet_connection_name`` or ``vmm_type``. The intent
+        is to make snapshot replay deterministic.
+
+        Callers (notably :class:`acas_toolkit.SessionManager`) still
+        need to re-apply egress and volumes on every rehydrate —
+        snapshots don't persist them. So when ``snapshot_id`` is
+        present we defer those two kwargs and re-apply them via the
+        per-sandbox setters (``SandboxClient.set_egress_policy`` and
+        ``SandboxClient.add_volume_mount``) once the LRO returns. Fresh
+        creates are unaffected.
+        """
         ep = _coerce_egress_policy(egress_policy)
         vols = _coerce_volumes(volumes)
+        snapshot_id = kwargs.get("snapshot_id")
+
         call_kwargs: dict[str, Any] = dict(kwargs)
         call_kwargs["disk"] = disk
-        if ep is not None:
+
+        # When rehydrating from a snapshot, defer egress/volumes to
+        # post-create setters; otherwise pass them through to the LRO.
+        defer_egress: EgressPolicy | None = None
+        defer_volumes: list[SandboxVolume] | None = None
+        if snapshot_id and ep is not None:
+            defer_egress = ep
+        elif ep is not None:
             call_kwargs["egress_policy"] = ep
-        if vols is not None:
+        if snapshot_id and vols:
+            defer_volumes = vols
+        elif vols is not None:
             call_kwargs["volumes"] = vols
+
         poller = self._gc.begin_create_sandbox(**call_kwargs)
         sb: SandboxClient = poller.result()
         self._sb_clients[sb.sandbox_id] = sb
+
+        if defer_egress is not None:
+            sb.set_egress_policy(defer_egress)
+        if defer_volumes:
+            for v in defer_volumes:
+                try:
+                    sb.add_volume_mount(
+                        AddVolumeMountRequest(
+                            volume_name=v.volume_name,
+                            mountpoint=v.mountpoint,
+                        )
+                    )
+                except HttpResponseError as exc:
+                    # Newer service behavior may restore volume mounts from
+                    # the snapshot itself, in which case explicit re-attach
+                    # returns 409 VolumeAlreadyMounted. Treat this as success
+                    # so snapshot rehydrate remains idempotent across b2+.
+                    text = str(exc)
+                    if getattr(exc, "status_code", None) == 409 and "VolumeAlreadyMounted" in text:
+                        continue
+                    raise
+
         return _SbHandle(sb.sandbox_id)
 
     def delete_sandbox(self, sbx_id: str, sandbox_group: str | None = None) -> None:

@@ -15,14 +15,20 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-# Versions pinned to a known-good combo verified against the May 2026 PyPI
+# Versions pinned to a known-good combo verified against the June 2026 PyPI
 # build of the ACAS SDK.
 dependencies = [
-    # ACAS data/control-plane SDK. 0.1.0b1 on PyPI (uploaded 2026-05-30) is
-    # the public preview build. When the SDK graduates to GA the prerelease
-    # flag at the bottom of this file can be dropped and the egress audit
-    # behaviour re-verified with `probes/sandbox_egress_audit.py`.
-    "azure-containerapps-sandbox==0.1.0b1",
+    # ACAS data/control-plane SDK. 0.1.0b2 on PyPI (uploaded 2026-06-15)
+    # is the current public preview build. We require >=b2 because b2
+    # added strict validation on `begin_create_sandbox(snapshot_id=...)`
+    # that rejects `egress_policy` and `volumes`; the deferred-apply
+    # shim in `acas_toolkit/data_client.py` depends on the b2-only
+    # `SandboxClient.set_egress_policy` and `add_volume_mount` setters.
+    # The `<0.2` ceiling guards against a future major-shape change.
+    # When the SDK graduates to GA the prerelease flag at the bottom
+    # of this file can be dropped and the egress audit behaviour
+    # re-verified with `probes/sandbox_egress_audit.py`.
+    "azure-containerapps-sandbox>=0.1.0b2,<0.2",
     "azure-identity>=1.25.3",
     "azure-monitor-opentelemetry>=1.8.8",
     "httpx>=0.28.1",
