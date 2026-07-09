@@ -3,6 +3,14 @@
 If this fails, the package layout is broken even before any code runs.
 """
 
+import importlib.util
+
+import pytest
+
+
+def _agent_framework_installed() -> bool:
+    return importlib.util.find_spec("agent_framework") is not None
+
 
 def test_core_imports() -> None:
     from acas_toolkit import (
@@ -41,8 +49,32 @@ def test_executor_module() -> None:
     assert all(x is not None for x in (ExecRequest, ExecResult, execute))
 
 
+def test_core_import_does_not_require_agent_framework() -> None:
+    """The core package must import without Agent Framework present.
+
+    Agent Framework lives behind the ``[agent-framework]`` extra; importing
+    ``acas_toolkit`` (sandbox management) must never pull it in.
+    """
+    import acas_toolkit  # noqa: F401  (import side-effect is the assertion)
+
+    core_public = set(acas_toolkit.__all__)
+    # None of the core exports should be the AF tool factories.
+    assert not core_public.intersection(
+        {
+            "make_execute_code_tool",
+            "make_run_python_tool",
+            "make_run_pytest_tool",
+            "make_run_shell_tool",
+        }
+    )
+
+
+@pytest.mark.skipif(
+    not _agent_framework_installed(),
+    reason="Agent Framework not installed; install acas-toolkit[agent-framework]",
+)
 def test_agent_framework_integration() -> None:
-    # AF is a core dep in this scaffold, so this should always import.
+    # Only runs when the [agent-framework] extra is installed.
     from acas_toolkit.integrations.agent_framework import (
         make_execute_code_tool,
         make_run_python_tool,
@@ -58,6 +90,16 @@ def test_agent_framework_integration() -> None:
             make_run_shell_tool,
         )
     )
+
+
+def test_agent_framework_integration_guarded_without_af() -> None:
+    """Without Agent Framework, importing the integration must raise a
+    helpful ImportError pointing at the extra (not a bare ModuleNotFound)."""
+    if _agent_framework_installed():
+        pytest.skip("Agent Framework is installed; guard path not exercised")
+    with pytest.raises(ImportError, match=r"acas-toolkit\[agent-framework\]"):
+        import acas_toolkit.integrations.agent_framework  # noqa: F401
+
 
 
 def test_group_client_adapter_egress_passthrough() -> None:

@@ -36,13 +36,20 @@ dependencies = [
     "opentelemetry-sdk>=1.27",
     "pydantic>=2.6",
     "python-dotenv>=1.0",
-    # Pulled in to match the spike. Lets examples 04/05/08 import AF without
-    # an extras install. If you don't want AF, comment these two lines.
-    "agent-framework>=1.2.2,<1.3",
-    "agent-framework-foundry>=1.2.2,<1.3",
 ]
 
 [project.optional-dependencies]
+# Microsoft Agent Framework integration (acas_toolkit.integrations.agent_framework).
+# Kept OUT of core so a sandbox-management-only install stays lean and is not
+# chained to Agent Framework's (independently-versioned, fast-moving) release
+# train. Install with:  pip install "acas-toolkit[agent-framework]"
+# Pin note: agent-framework 1.2.x is no longer resolvable on PyPI because a
+# transitive dep (agent-framework-orchestrations) now requires
+# agent-framework-core>=1.9. The >=1.9 floor below tracks that.
+agent-framework = [
+    "agent-framework>=1.9,<2",
+    "agent-framework-foundry>=1.9,<2",
+]
 dev = [
     "ruff>=0.4",
     "pytest>=8",
