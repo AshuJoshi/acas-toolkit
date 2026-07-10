@@ -212,9 +212,26 @@ are:
 uv sync --extra dev
 ```
 
-This resolves `azure-containerapps-sandbox==0.1.0b1` from PyPI (no
-vendored wheel) plus the OpenTelemetry, Agent Framework, and dev
-dependencies.
+This resolves the **core** stack — `azure-containerapps-sandbox`, the
+OpenTelemetry libraries, and the dev tools — for sandbox management
+(create groups/sandboxes, run/idle, executor, sessions, egress,
+workspaces). It does **not** pull in Microsoft Agent Framework.
+
+**Agent Framework is an optional extra.** The
+`acas_toolkit.integrations.agent_framework` adapters (used by examples
+04, 05, and 08) live behind the `agent-framework` extra so a
+sandbox-only install stays lean and is not chained to Agent Framework's
+independently-versioned release train:
+
+```bash
+# core + Agent Framework integration
+uv sync --extra dev --extra agent-framework
+# or, with pip:
+pip install "acas-toolkit[agent-framework]"
+```
+
+Importing the integration without the extra installed raises a helpful
+`ImportError` telling you to install `acas-toolkit[agent-framework]`.
 
 ### 4. Run the first example
 
